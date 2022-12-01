@@ -1,2 +1,2 @@
-# AdventOfCode16
-Solutions for AoC 2016
+# AdventOfCode22
+Solutions for AoC 2022
