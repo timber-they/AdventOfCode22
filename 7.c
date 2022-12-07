@@ -28,6 +28,7 @@ void printTree(Tree tree, int depth);
 int getSize(Tree *tree);
 int sumWithMaximum(Tree *tree, int max);
 int containsDirectoryName(Tree tree, char *name);
+int findSmallestDirectoryOfAtLeast(Tree *tree, int size);
 
 int main()
 {
@@ -45,7 +46,6 @@ int part1(FILE *in)
 {
     Tree *parsed = parseTree(in);
 	int res = sumWithMaximum(parsed, 100000);
-	printTree(*parsed, 0);
     freeTree(*parsed);
     free(parsed);
 	return res;
@@ -53,7 +53,11 @@ int part1(FILE *in)
 
 int part2(FILE *in)
 {
-    return in == NULL ? -3 : -2;
+    Tree *parsed = parseTree(in);
+	int res = findSmallestDirectoryOfAtLeast(parsed, 30000000 - 70000000 + getSize(parsed));
+    freeTree(*parsed);
+    free(parsed);
+	return res;
 }
 
 Tree *parseTree(FILE *in)
@@ -176,4 +180,18 @@ int containsDirectoryName(Tree tree, char *name)
         if (!strcmp(tree.name, name))
             return i+1;
     return 0;
+}
+
+int findSmallestDirectoryOfAtLeast(Tree *tree, int size)
+{
+    if (getSize(tree) < size)
+        return 0;
+    int min = getSize(tree);
+    for (int i = 0; i < tree->childrenCount; i++)
+    {
+        int new = findSmallestDirectoryOfAtLeast(tree->children+i, size);
+        if (new && new < min)
+            min = new;
+    }
+    return min;
 }
