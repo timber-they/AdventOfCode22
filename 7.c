@@ -17,13 +17,17 @@ typedef struct Tree
     // The sum of the sizes of all the files that
     //  are directly in this directory
     int directSize;
+	int completeSize;
 } Tree;
 
 int part1(FILE *in);
 int part2(FILE *in);
 Tree *parseTree(FILE *in);
 void freeTree(Tree tree);
-void printTree(Tree tree);
+void printTree(Tree tree, int depth);
+int getSize(Tree *tree);
+int sumWithMaximum(Tree *tree, int max);
+int containsDirectoryName(Tree tree, char *name);
 
 int main()
 {
@@ -40,9 +44,11 @@ int main()
 int part1(FILE *in)
 {
     Tree *parsed = parseTree(in);
+	int res = sumWithMaximum(parsed, 100000);
+	printTree(*parsed, 0);
     freeTree(*parsed);
     free(parsed);
-    return -1;
+	return res;
 }
 
 int part2(FILE *in)
@@ -58,7 +64,8 @@ Tree *parseTree(FILE *in)
         .parent = NULL,
         .children = malloc(MAX_CHILDREN * sizeof(Tree)),
         .childrenCount = 0,
-        .directSize = 0
+        .directSize = 0,
+		.completeSize = -1
     };
     Tree *current = malloc(sizeof(*current));
     *current = root;
@@ -85,17 +92,27 @@ Tree *parseTree(FILE *in)
                                 current = current->parent;
                                 break;
                             default:
+                            {
+                                char *name = line + strlen("$ cd ");
+                                int known;
+                                if ((known = containsDirectoryName(*current, name)))
+                                {
+                                    current = current->children+known-1;
+                                    break;
+                                }
                                 current->children[current->childrenCount++] =
                                     (Tree) {
                                         .name = "",
                                         .parent = current,
                                         .children = malloc(MAX_CHILDREN * sizeof(Tree)),
                                         .childrenCount = 0,
-                                        .directSize = 0
+                                        .directSize = 0,
+										.completeSize = -1
                                     };
                                 current = current->children + current->childrenCount - 1;
-                                strncpy(current->name, line + strlen("$ cd "), MAX_NAME);
+                                strncpy(current->name, name, MAX_NAME);
                                 break;
+                            }
                         }
                         break;
                     case 'l':
@@ -124,3 +141,39 @@ void freeTree(Tree tree)
     free(tree.children);
 }
 
+void printTree(Tree tree, int depth)
+{
+	for (int i = 0; i < depth; i++)
+		printf(" ");
+	printf("%d %s", tree.completeSize, tree.name);
+	for (int i = 0; i < tree.childrenCount; i++)
+		printTree(tree.children[i], depth+1);
+}
+
+int getSize(Tree *tree)
+{
+	if (tree->completeSize >= 0)
+		return tree->completeSize;
+	tree->completeSize = tree->directSize;
+	for (int i = 0; i < tree->childrenCount; i++)
+		tree->completeSize += getSize(tree->children+i);
+	return tree->completeSize;
+}
+
+int sumWithMaximum(Tree *tree, int max)
+{
+	int res = 0;
+	if (getSize(tree) <= max)
+		res += getSize(tree);
+	for (int i = 0; i < tree->childrenCount; i++)
+		res += sumWithMaximum(tree->children+i, max);
+	return res;
+}
+
+int containsDirectoryName(Tree tree, char *name)
+{
+    for (int i = 0; i < tree.childrenCount; i++)
+        if (!strcmp(tree.name, name))
+            return i+1;
+    return 0;
+}
