@@ -18,25 +18,25 @@ typedef enum
 
 typedef struct
 {
-    int items[THINGS];
+    long items[THINGS];
     int itemCount;
     Operation op;
     int number;
     int test;
     int trueMonkey;
     int falseMonkey;
-    int inspections;
+    long inspections;
 } Monkey;
 
 int part1(FILE *in);
-int part2(FILE *in);
+long part2(FILE *in);
 Monkey *parseMonkeys(FILE *in, Monkey *buff);
 void playRound(Monkey *monkeys);
 void playMonkey(Monkey *active, Monkey *monkeys);
 void inspect(Monkey *monkey, Monkey *monkeys);
 int isWorried(Monkey *monkey);
 void moveItem(Monkey *from, Monkey *to);
-int calculateBusiness(Monkey *monkeys);
+long calculateBusiness(Monkey *monkeys);
 void printMonkeys(Monkey *monkeys);
 
 int relief = 1;
@@ -47,7 +47,7 @@ int main()
 
     printf("Part1: %d\n", part1(in));
     rewind(in);
-    printf("Part2: %d\n", part2(in));
+    printf("Part2: %ld\n", part2(in));
 
     fclose(in);
     return 0;
@@ -63,12 +63,12 @@ int part1(FILE *in)
     return calculateBusiness(monkeys);
 }
 
-int part2(FILE *in)
+long part2(FILE *in)
 {
     relief = 0;
     Monkey monkeys[MONKEYS] = {0};
     parseMonkeys(in, monkeys);
-    for (int i = 0; i < 20; i++)
+    for (int i = 0; i < 10000; i++)
         playRound(monkeys);
     return calculateBusiness(monkeys);
 }
@@ -181,30 +181,33 @@ void inspect(Monkey *monkey, Monkey *monkeys)
 {
     if (monkeys == NULL)
         fprintf(stderr, "Where are the monkeys?!\n");
+    long mod = 1;
+    for (int i = 0; i < MONKEYS; i++)
+        mod *= monkeys[i].test;
     switch(monkey->op)
     {
         case oldTimesOld:
             monkey->items[0] =
                 (monkey->items[0]*monkey->items[0])
-                //    % (monkeys[i].test*monkeys[i].number)
+                % mod
                 ;
             break;
         case oldTimesNumber:
             monkey->items[0] =
                 (monkey->items[0]*monkey->number)
-                //    % (monkeys[i].test*monkeys[i].number)
+                % mod
                 ;
             break;
         case oldPlusOld:
             monkey->items[0] =
                 (monkey->items[0]+monkey->items[0])
-                //    % (monkeys[i].test*monkeys[i].number)
+                % mod
                 ;
             break;
         case oldPlusNumber:
             monkey->items[0] =
                 (monkey->items[0]+monkey->number)
-                //    % (monkeys[i].test*monkeys[i].number)
+                % mod
                 ;
             break;
     }
@@ -224,9 +227,9 @@ void moveItem(Monkey *from, Monkey *to)
         from->items[i] = from->items[i+1];
 }
 
-int calculateBusiness(Monkey *monkeys)
+long calculateBusiness(Monkey *monkeys)
 {
-    int max = 0,
+    long max = 0,
         second = 0;
     for (int i = 0; i < MONKEYS; i++)
         if (monkeys[i].inspections > max)
@@ -245,7 +248,7 @@ void printMonkeys(Monkey *monkeys)
     {
         printf("Items: ");
         for (int j = 0; j < monkeys[i].itemCount; j++)
-            printf("%d, ", monkeys[i].items[j]);
+            printf("%ld, ", monkeys[i].items[j]);
         printf("\n");
         printf("Item count: %d\n", monkeys[i].itemCount);
         printf("Operation: %d\n", monkeys[i].op);
@@ -253,7 +256,7 @@ void printMonkeys(Monkey *monkeys)
         printf("Test: %d\n", monkeys[i].test);
         printf("True Monkey: %d\n", monkeys[i].trueMonkey);
         printf("False Monkey: %d\n", monkeys[i].falseMonkey);
-        printf("Inspections: %d\n", monkeys[i].inspections);
+        printf("Inspections: %ld\n", monkeys[i].inspections);
         printf("===========================\n");
     }
 }
