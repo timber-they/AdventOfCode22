@@ -16,6 +16,9 @@ void draw(int *scan, int x1, int y1, int x2, int y2);
 // Returns truthy if sand fell through
 int dropSand(int *scan);
 
+int Part = 1;
+int MaxY = 0;
+
 int main()
 {
     FILE *in = fopen("in14", "r");
@@ -30,6 +33,7 @@ int main()
 
 int part1(FILE *in)
 {
+    Part = 1;
     int scan[MAX*MAX] = {0};
     fill(in, scan);
     int i;
@@ -39,7 +43,12 @@ int part1(FILE *in)
 
 int part2(FILE *in)
 {
-    return in == NULL ? -3 : -2;
+    Part = 2;
+    int scan[MAX*MAX] = {0};
+    fill(in, scan);
+    int i;
+    for (i = 0; !dropSand(scan); i++);
+    return i+1;
 }
 
 void fill(FILE *in, int *scan)
@@ -48,6 +57,7 @@ void fill(FILE *in, int *scan)
     int y = 0;
     int lastX = 0;
     int lastY = 0;
+    MaxY = 0;
     int c;
     int isY = 0;
     while ((c = fgetc(in)) != EOF)
@@ -62,6 +72,8 @@ void fill(FILE *in, int *scan)
                     fprintf(stderr, "ERROR\n");
                 if (lastX != 0)
                     draw(scan, lastX, lastY, x, y);
+                if (y > MaxY)
+                    MaxY = y;
                 lastX = x;
                 lastY = y;
                 x = 0;
@@ -114,6 +126,11 @@ int dropSand(int *scan)
     int y = 0;
     while (y < MAX)
     {
+        if (Part == 2 && y == MaxY + 1)
+        {
+            scan[_(x,y)] = 3;
+            return 0;
+        }
         if (!scan[_(x,y+1)])
             y++;
         else if (!scan[_(x-1,y+1)])
@@ -129,6 +146,8 @@ int dropSand(int *scan)
         else
         {
             scan[_(x,y)] = 2;
+            if (x == 500 && y == 0)
+                return 2;
             return 0;
         }
     }
