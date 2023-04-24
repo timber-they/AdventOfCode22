@@ -5,16 +5,17 @@
 #include <math.h>
 
 #define VALVES 51
-#define REL_VALVES 15
 #define TIME 30
 
 #define _(from,to) ((to)*(VALVES) + (from))
-#define __(from,to) ((to)*(REL_VALVES) + (from))
+#define __(openKey,leftTime,current) ((openKey)*(TIME)*(VALVES) + (leftTime)*(VALVES) + (current))
 
 int part1(FILE *in);
 int part2(FILE *in);
 int readValves(FILE *in, int *flowRates, int *tunnels);
-void calculateCosts(int *flowRates, int *tunnels, int *costs);
+int mostGas(int *flowRates, int *tunnels, int *memory, int current, int leftTime, int *open);
+int getOpenKey(int *flowRates, int *open);
+int maxOpenKey(int *flowRates);
 
 int valveNames[VALVES];
 
@@ -35,12 +36,19 @@ int part1(FILE *in)
     int flowRates[VALVES] = {0};
     int tunnels[VALVES*VALVES] = {0};
     int current = readValves(in, flowRates, tunnels);
-    return -1;
+    int openKeyCount = maxOpenKey(flowRates)+1;
+    int *memory = malloc(openKeyCount*TIME*VALVES*sizeof(*memory));
+    for (int i = 0; i < openKeyCount*TIME*VALVES; i++)
+        memory[i] = -1;
+    int open[VALVES] = {0};
+    int ret = mostGas(flowRates, tunnels, memory, current, TIME, open);
+    free(memory);
+    return ret;
 }
 
 int part2(FILE *in)
 {
-    return -2;
+    return in == NULL ? -3 :  -2;
 }
 
 int readValves(FILE *in, int *flowRates, int *tunnels)
@@ -106,34 +114,58 @@ int readValves(FILE *in, int *flowRates, int *tunnels)
     return ret;
 }
 
-int calculateCost(int *tunnels, int *costs, int from, int to, int *visitted)
+int mostGas(int *flowRates, int *tunnels, int *memory, int current, int leftTime, int *open)
 {
-    if (costs[_(from, to)] >= 0)
-        return costs[_(from, to)];
-    if (from == to)
-        return (costs[_(from, to)] = 0);
-    if (costs[_(to, from)] >= 0)
-        return (costs[_(from, to)] = costs[_(to, from)]);
-    int min = 1<<30;
-    visitted[from] = 1;
+    int openKey = getOpenKey(flowRates, open);
+    if (leftTime < 0)
+        return -(1<<30);
+    if (leftTime <= 0)
+        return 0;
+    if (memory[__(openKey,leftTime,current)] >= 0)
+        return memory[__(openKey,leftTime,current)];
+
+    int max = 0;
+    int oldState = open[current];
+
+    // Ignoring that valve
     for (int i = 0; i < VALVES; i++)
     {
-        if (!tunnels[_(from,i)] || visitted[i])
-            continue;
-        int score = calculateCost(tunnels, costs, i, to, visitted) + 1;
-        if (score < min)
-            min = score;
+        if (tunnels[_(current, i)])
+        {
+            int new = mostGas(flowRates, tunnels, memory, i, leftTime-1, open);
+            if (new > max)
+                max = new;
+        }
     }
-    visitted[from] = 0;
-    return min;
+    open[current] = oldState;
+
+    // Already open or useless to open
+    if (open[current] || !flowRates[current])
+        return (memory[__(openKey,leftTime,current)]=max);
+
+    // Opening it
+    open[current] = 1;
+    int new = mostGas(flowRates, tunnels, memory, current, leftTime-1, open) + (leftTime-1)*flowRates[current];
+    if (new > max)
+        max = new;
+    open[current] = oldState;
+    return (memory[__(openKey,leftTime,current)]=max);
 }
 
-void calculateCosts(int *flowRates, int *tunnels, int *costs)
+int getOpenKey(int *flowRates, int *open)
 {
-    for (int i = 0; i < VALVES*VALVES; i++)
-        costs[i] = -1;
-    int visitted[VALVES] = {0};
+    int key = 0;
     for (int i = 0; i < VALVES; i++)
-        for (int j = 0; j < VALVES; j++)
-            costs[_(i,j)] = calculateCost(tunnels, costs, i, j, visitted);
+        if (flowRates[i])
+            key = (key<<1)+open[i];
+    return key;
 }
+
+int maxOpenKey(int *flowRates)
+{
+    int open[VALVES];
+    for (int i = 0; i < VALVES; i++)
+        open[i] = 1;
+    return getOpenKey(flowRates, open);
+}
+
