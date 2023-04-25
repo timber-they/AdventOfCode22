@@ -4,10 +4,10 @@
 #include <errno.h>
 #include <math.h>
 
-//#define VALVES 51
-#define VALVES 10
-//#define REL_VALVES 15
-#define REL_VALVES 6
+#define VALVES 51
+//#define VALVES 10
+#define REL_VALVES 15
+//#define REL_VALVES 6
 #define TIME 30
 #define TIME2 26
 
@@ -33,7 +33,7 @@ int valveNames[VALVES];
 
 int main()
 {
-    FILE *in = fopen("test16", "r");
+    FILE *in = fopen("in16", "r");
 
     printf("Part1: %d\n", part1(in));
     rewind(in);
@@ -222,7 +222,7 @@ int getMostPressure(int *flowRates, int *costs, int position, int valveStates, i
     int flowScore = flowRates[position]*leftTime;
     SET_STATE(valveStates, position);
     // Moving to other valve
-    int max = 0;
+    int max = flowScore;
     for (int i = 0; i < REL_VALVES; i++)
     {
         // No need to visit already open valves
@@ -246,6 +246,9 @@ int getMostPressure2(int *flowRates, int *costs, int position, int valveStates, 
         int max = 0;
         for (int i = 0; i < REL_VALVES; i++)
         {
+            // No need to visit already open valves
+            if (GET_STATE(valveStates, i))
+                continue;
             int score = getMostPressure2(flowRates, costs, i, valveStates, TIME2-costsFromStart[i], memory, costsFromStart, 1);
             if (score > max)
                 max = score;
@@ -261,15 +264,18 @@ int getMostPressure2(int *flowRates, int *costs, int position, int valveStates, 
     int flowScore = flowRates[position]*leftTime;
     SET_STATE(valveStates, position);
     // Moving to other valve
-    int max = 0;
+    int max = flowScore;
     for (int i = 0; i < REL_VALVES; i++)
     {
         // No need to visit already open valves
         if (GET_STATE(valveStates, i))
             continue;
-        int score = getMostPressure2(flowRates, costs, i, valveStates, leftTime-costs[__(position,i)], memory, costsFromStart, player) + flowScore;
-        if (score > max)
-            max = score;
+        int score1 = getMostPressure2(flowRates, costs, i, valveStates, leftTime-costs[__(position,i)], memory, costsFromStart, player) + flowScore;
+        int score2 = player ? 0 : getMostPressure2(flowRates, costs, i, valveStates, TIME2-costsFromStart[i], memory, costsFromStart, 1) + flowScore;
+        if (score1 > max)
+            max = score1;
+        if (score2 > max)
+            max = score2;
     }
     // Closing valve
     CLR_STATE(valveStates, position);
