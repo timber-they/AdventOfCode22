@@ -9,6 +9,7 @@
 #define REL_VALVES 15
 //#define REL_VALVES 6
 #define TIME 30
+#define TIME2 26
 
 #define _(from,to) ((to)*(VALVES) + (from))
 #define __(from,to) ((to)*(REL_VALVES) + (from))
@@ -24,7 +25,8 @@ void calculateCosts(int *tunnels, int *costs);
 void reduceToRelevant(int *flowRates, int *costs, int *relFlowRates, int *relCosts, int start, int *costsFromStart);
 void getRelevantGraph(FILE *in, int *relFlowRates, int *relCosts, int *costsFromStart);
 int calculateKey(int position, int valveStates, int leftTime);
-int getMostPressure(int *flowRates, int *costs, int position, int valveStates, int leftTime, int *memory, int visittedSinceChange);
+int calculateKey2(int position1, int position2, int valveStates, int leftTime);
+int getMostPressure(int *flowRates, int *costs, int position, int valveStates, int leftTime, int *memory);
 
 int valveNames[VALVES];
 
@@ -52,7 +54,7 @@ int part1(FILE *in)
         memory[i] = -1;
     for (int i = 0; i < REL_VALVES; i++)
     {
-        int score = getMostPressure(flowRates, costs, i, 0, TIME-costsFromStart[i], memory, 0);
+        int score = getMostPressure(flowRates, costs, i, 0, TIME-costsFromStart[i], memory);
         if (score > max)
             max = score;
     }
@@ -184,31 +186,39 @@ int calculateKey(int position, int valveStates, int leftTime)
         + valveStates;
 }
 
-int getMostPressure(int *flowRates, int *costs, int position, int valveStates, int leftTime, int *memory, int visittedSinceChange)
+int calculateKey2(int position1, int position2, int valveStates, int leftTime)
 {
-    if (leftTime <= 0)
+    return position1*(1<<REL_VALVES)*(TIME2+1)*(REL_VALVES)
+        + position2*(1<<REL_VALVES)*(TIME2+1)
+        + leftTime*(1<<REL_VALVES)
+        + valveStates;
+}
+
+int getMostPressure(int *flowRates, int *costs, int position, int valveStates, int leftTime, int *memory)
+{
+    if (leftTime <= 1)
         return 0;
+    // Checking memory
     int key = calculateKey(position, valveStates, leftTime);
     if (memory[key] >= 0)
         return memory[key];
+    // Opening valve
+    leftTime--;
+    int flowScore = flowRates[position]*leftTime;
+    SET_STATE(valveStates, position);
+    // Moving to other valve
     int max = 0;
-    if (!GET_STATE(valveStates,position))
-    {
-        SET_STATE(valveStates,position);
-        max = getMostPressure(flowRates, costs, position, valveStates, leftTime-1, memory, 0) + flowRates[position]*(leftTime-1);
-        CLR_STATE(valveStates,position);
-    }
-    SET_STATE(visittedSinceChange, position);
     for (int i = 0; i < REL_VALVES; i++)
     {
         // No need to visit already open valves
-        if (GET_STATE(valveStates, i) || GET_STATE(visittedSinceChange, i))
+        if (GET_STATE(valveStates, i))
             continue;
-        int score = getMostPressure(flowRates, costs, i, valveStates, leftTime-costs[__(position,i)], memory, visittedSinceChange);
+        int score = getMostPressure(flowRates, costs, i, valveStates, leftTime-costs[__(position,i)], memory) + flowScore;
         if (score > max)
             max = score;
     }
-    CLR_STATE(visittedSinceChange, position);
+    // Closing valve
+    CLR_STATE(valveStates, position);
     return (memory[key] = max);
 }
 
