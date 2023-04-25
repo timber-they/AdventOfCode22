@@ -14,7 +14,9 @@
 int part1(FILE *in);
 int part2(FILE *in);
 int readValves(FILE *in, int *flowRates, int *tunnels);
-void calculateCosts(int *flowRates, int *tunnels, int *costs);
+void calculateCosts(int *tunnels, int *costs);
+void reduceToRelevant(int *flowRates, int *costs, int *relFlowRates, int *relCosts, int start, int *costsFromStart);
+void getRelevantGraph(FILE *in, int *relFlowRates, int *relCosts, int *costsFromStart);
 
 int valveNames[VALVES];
 
@@ -32,14 +34,17 @@ int main()
 
 int part1(FILE *in)
 {
-    int flowRates[VALVES] = {0};
-    int tunnels[VALVES*VALVES] = {0};
-    int current = readValves(in, flowRates, tunnels);
+    int flowRates[REL_VALVES];
+    int costs[REL_VALVES*REL_VALVES];
+    int costsFromStart[REL_VALVES];
+    getRelevantGraph(in, flowRates, costs, costsFromStart);
     return -1;
 }
 
 int part2(FILE *in)
 {
+    if (in == NULL)
+        return -3;
     return -2;
 }
 
@@ -125,15 +130,45 @@ int calculateCost(int *tunnels, int *costs, int from, int to, int *visitted)
             min = score;
     }
     visitted[from] = 0;
-    return min;
+    return costs[_(from, to)] = min;
 }
 
-void calculateCosts(int *flowRates, int *tunnels, int *costs)
+void calculateCosts(int *tunnels, int *costs)
 {
     for (int i = 0; i < VALVES*VALVES; i++)
         costs[i] = -1;
     int visitted[VALVES] = {0};
     for (int i = 0; i < VALVES; i++)
         for (int j = 0; j < VALVES; j++)
-            costs[_(i,j)] = calculateCost(tunnels, costs, i, j, visitted);
+            calculateCost(tunnels, costs, i, j, visitted);
 }
+
+void reduceToRelevant(int *flowRates, int *costs, int *relFlowRates, int *relCosts, int start, int *costsFromStart)
+{
+    int indices[REL_VALVES];
+    {
+        int j = 0;
+        for (int i = 0; i < VALVES; i++)
+            if (flowRates[i])
+            {
+                indices[j] = i;
+                relFlowRates[j++] = flowRates[i];
+            }
+    }
+    for (int i = 0; i < REL_VALVES; i++)
+        for (int j = 0; j < REL_VALVES; j++)
+            relCosts[__(i,j)] = costs[_(indices[i],indices[j])];
+    for (int i = 0; i < REL_VALVES; i++)
+        costsFromStart[i] = costs[_(start, indices[i])];
+}
+
+void getRelevantGraph(FILE *in, int *relFlowRates, int *relCosts, int *costsFromStart)
+{
+    int flowRates[VALVES];
+    int costs[VALVES*VALVES];
+    int tunnels[VALVES*VALVES];
+    int start = readValves(in, flowRates, tunnels);
+    calculateCosts(tunnels, costs);
+    reduceToRelevant(flowRates, costs, relFlowRates, relCosts, start, costsFromStart);
+}
+
