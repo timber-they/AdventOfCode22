@@ -6,14 +6,16 @@
 
 #define RES_COUNT 4
 #define LAST ((RES_COUNT)-1)
-#define BLP_COUNT 30
-//#define BLP_COUNT 2
+//#define BLP_COUNT 30
+#define BLP_COUNT 2
 #define TIME 24
 #define MAX_ORE ((TIME)*(TIME+1)/2+1)
 
-#define BLP_COUNT2 3
-//#define BLP_COUNT2 2
+//#define BLP_COUNT2 3
+#define BLP_COUNT2 2
 #define TIME2 32
+
+#define MAX_ROBOTS TIME2
 
 // 0/0 := 0
 #define ROOF_DIVIDE(a,b) ((a) == 0 ? 0 : \
@@ -34,14 +36,19 @@ void readBlueprints(FILE *in, Blueprint *blueprints);
 int maxGeodes(Blueprint blueprint, int time, int *resources, int *robots);
 void pay(int i, int *resources, Blueprint blueprint);
 void unpay(int i, int *resources, Blueprint blueprint);
-void reward(int *a, int *b, Blueprint blueprint, int *robots, int mul);
+void reward(int *resources, Blueprint blueprint, int *robots, int mul);
 int couldPay(int *resources, Blueprint blueprint, int i);
-void testRoofDivide();
+// Returns the time that is needed
+int minimumTime(int robotIndex, int *resources, int *robots, Blueprint blueprint, int leftTime);
+void print(int *resources, int *robots);
+
+int best[(TIME2+1)*RES_COUNT] = {0};
+int bestRobots[((TIME2+1)*RES_COUNT)*RES_COUNT] = {0};
+int bestResources[((TIME2+1)*RES_COUNT)*RES_COUNT] = {0};
 
 int main()
 {
-    testRoofDivide();
-    FILE *in = fopen("in19", "r");
+    FILE *in = fopen("test19", "r");
 
     printf("Part1: %d\n", part1(in));
     rewind(in);
@@ -121,68 +128,60 @@ void readBlueprints(FILE *in, Blueprint *blueprints)
 
 int maxGeodes(Blueprint blueprint, int time, int *resources, int *robots)
 {
-    //printf("Calculating max geodes with time %d (minute=%d), resources %d,%d,%d,%d and robots %d,%d,%d,%d\n", time, TIME+1-time, resources[0], resources[1], resources[2], resources[3], robots[0], robots[1], robots[2], robots[3]);
-    int checksumResources = 0;
-    for (int i = 0; i < RES_COUNT; i++)
-        checksumResources += (i+1)*resources[i];
-    //printf("Left time: %d\n", time);
-    // No time left!
-    if (time <= 0)
-        return resources[LAST];
-
-    // Buy nothing
-    int next[RES_COUNT];
-    reward(resources, next, blueprint, robots, time);
-    int max = next[LAST];
-
-    for (int i = 0; i < RES_COUNT; i++)
+    int nextResources[RES_COUNT];
+    int nextRobots[RES_COUNT];
+    while (1)
     {
-        int neededTime = 0;
-        for (int j = 0; j < RES_COUNT; j++)
+        // Aim for geode robots
+        memcpy(nextResources, resources, RES_COUNT*sizeof(*resources));
+        memcpy(nextRobots, robots, RES_COUNT*sizeof(*resources));
+        int neededTime = minimumTime(LAST, nextResources, nextRobots, blueprint, time);
+        printf("Best robot decisions were:\n");
+        for (int i = TIME2; i >= 0; i--)
         {
-            int neededResources = blueprint.robotCost[i*RES_COUNT+j] - resources[j];
-            // If the resource j is needed for the robot i
-            if (neededResources > 0
-                    // ... and there exists no robot to produce the resource
-                    && !robots[j])
-                // ... then try next robot
-                goto nextRobot;
-            else if (neededResources <= 0)
-                // No time needed
-                continue;
-            int thisNeededTime = ROOF_DIVIDE(neededResources, robots[j]);
-            //printf("Need %d for robot, producing %d per minute, so I need %d minutes!\n", neededResources, robots[j], thisNeededTime);
-            if (thisNeededTime >= time-1)
+            for (int j = 3; j >= 0; j--)
             {
-                //printf("Abort!\n");
-                goto nextRobot;
+                if (best[j*(TIME2+1)+i])
+                {
+                    printf("[%d,%d,%d,%d] [%d,%d,%d,%d] (%d, %d=%d) ", bestRobots[(j*(TIME2+1)+i)*RES_COUNT+0], bestRobots[(j*(TIME2+1)+i)*RES_COUNT+1], bestRobots[(j*(TIME2+1)+i)*RES_COUNT+2], bestRobots[(j*(TIME2+1)+i)*RES_COUNT+3], bestResources[(j*(TIME2+1)+i)*RES_COUNT+0], bestResources[(j*(TIME2+1)+i)*RES_COUNT+1], bestResources[(j*(TIME2+1)+i)*RES_COUNT+2], bestResources[(j*(TIME2+1)+i)*RES_COUNT+3], j, i, TIME+1-i);
+                    switch(best[j*(TIME2+1)+i])
+                    {
+                        case -1:
+                            printf("No time\n");
+                            break;
+                        case 0:
+                            printf("Nothing\n");
+                            break;
+                        case 1:
+                            printf("direct\n");
+                            break;
+                        case 2:
+                            printf("below\n");
+                            break;
+                        case 3:
+                            printf("wait\n");
+                            break;
+                    }
+                    best[j*(TIME2+1)+i] = 0;
+                }
             }
-            if (thisNeededTime > neededTime)
-                neededTime = thisNeededTime;
         }
-        //printf("I want to produce %d. I have the resources %d,%d,%d,%d, I need the resources %d,%d,%d,%d, I produce %d,%d,%d,%d so I need time %d!\n", i, resources[0], resources[1], resources[2], resources[3], blueprint.robotCost[i*RES_COUNT+0], blueprint.robotCost[i*RES_COUNT+1], blueprint.robotCost[i*RES_COUNT+2], blueprint.robotCost[i*RES_COUNT+3], robots[0], robots[1], robots[2], robots[3], neededTime);
-        //printf("=> needTime=%d\n", neededTime);
-        reward(resources, next, blueprint, robots, neededTime);
-        pay(i, next, blueprint);
-        for (int j = 0; j < RES_COUNT; j++)
-            if (next[j] < 0)
-                fprintf(stderr, "Negative resources!\n");
-        // Building the robot...
-        reward(next, next, blueprint, robots, 1);
-        robots[i]++;
-        int score = maxGeodes(blueprint, time-neededTime-1, next, robots);
-        robots[i]--;
-        if (score > max)
-            max = score;
-nextRobot:;
-    }
+        printf("\n\n");
 
-    int checksumResources2 = 0;
-    for (int i = 0; i < RES_COUNT; i++)
-        checksumResources2 += (i+1)*resources[i];
-    if (checksumResources != checksumResources2)
-        fprintf(stderr, "Resources changed!\n");
-    return max;
+        if (neededTime <= time)
+        {
+            memcpy(resources, nextResources, RES_COUNT*sizeof(*resources));
+            memcpy(robots, nextRobots, RES_COUNT*sizeof(*resources));
+            time -= neededTime;
+        }
+        else
+        {
+            // Can't build any geode robots anymore - don't build anything then
+            reward(resources, blueprint, robots, time);
+            break;
+        }
+    }
+    return resources[LAST];
 }
 
 void pay(int i, int *resources, Blueprint blueprint)
@@ -197,13 +196,11 @@ void unpay(int i, int *resources, Blueprint blueprint)
         resources[j] = resources[j]+blueprint.robotCost[i*RES_COUNT+j];
 }
 
-void reward(int *a, int *b, Blueprint blueprint, int *robots, int mul)
+void reward(int *resources, Blueprint blueprint, int *robots, int mul)
 {
     for (int i = 0; i < RES_COUNT; i++)
-        b[i] = a[i];
-    for (int i = 0; i < RES_COUNT; i++)
         for (int j = 0; j < RES_COUNT; j++)
-            b[j] += blueprint.robotRewards[i*RES_COUNT+j]*robots[i] * mul;
+            resources[j] += blueprint.robotRewards[i*RES_COUNT+j]*robots[i] * mul;
 }
 
 int couldPay(int *resources, Blueprint blueprint, int i)
@@ -214,28 +211,156 @@ int couldPay(int *resources, Blueprint blueprint, int i)
     return 1;
 }
 
-void testRoofDivide()
+int minimumTime(int robotIndex, int *resources, int *robots, Blueprint blueprint, int leftTime)
 {
-    int expected = 0;
-    for (int a = 0; a < 20; a++)
-        for (int b = 0; b < 20; b++)
+    if (leftTime <= 0)
+    {
+        best[robotIndex*(TIME2+1)+leftTime] = -1;
+        for (int k = 0; k < RES_COUNT; k++)
         {
-            if (a == 0)
-                expected = 0;
-            else if (b == 0)
-                expected = 1<<29;
-            else if (a <= b)
-                expected = 1;
-            else if (a % b == 0)
-                expected = a / b;
-            else
-                expected = a / b + 1;
-            int actual = ROOF_DIVIDE(a,b);
-            if (actual != expected)
-                fprintf(stderr, "roof(%d/%d) should be %d, but was %d!\n", a, b, expected, actual);
-            if (b*actual < a && b != 0)
-                fprintf(stderr, "roof(%d/%d)*%d=%d*%d<%d!\n", a, b, b, actual, b, a);
+            bestRobots[(robotIndex*(TIME2+1)+leftTime)*RES_COUNT+k] = robots[k];
+            bestResources[(robotIndex*(TIME2+1)+leftTime)*RES_COUNT+k] = resources[k];
         }
-    printf("Roof divide test done!\n");
+        return 1<<29;
+    }
+
+    /////////////////////////////
+    // I can directly buy one! //
+    /////////////////////////////
+    if (couldPay(resources, blueprint, robotIndex))
+    {
+        for (int k = 0; k < RES_COUNT; k++)
+        {
+            bestRobots[(robotIndex*(TIME2+1)+leftTime)*RES_COUNT+k] = robots[k];
+            bestResources[(robotIndex*(TIME2+1)+leftTime)*RES_COUNT+k] = resources[k];
+        }
+        pay(robotIndex, resources, blueprint);
+        reward(resources, blueprint, robots, 1);
+        robots[robotIndex]++;
+        best[robotIndex*(TIME2+1)+leftTime] = 1;
+        return 1;
+    }
+
+    ///////////////////////
+    // Trying by waiting //
+    ///////////////////////
+    int waitResources[RES_COUNT];
+    int waitRobots[RES_COUNT];
+    memcpy(waitResources, resources, RES_COUNT*sizeof(*resources));
+    memcpy(waitRobots, robots, RES_COUNT*sizeof(*robots));
+    
+    int hasRobots = 1;
+    int neededTime = 0;
+    int waitTime = 1<<29;
+    for (int i = 0; i < RES_COUNT; i++)
+    {
+        int cost = blueprint.robotCost[robotIndex*RES_COUNT+i];
+        if (!cost)
+            continue;
+        if (!robots[i])
+        {
+            hasRobots = 0;
+            break;
+        }
+        int neededResource = cost - waitResources[i];
+        if (neededResource > 0)
+        {
+            int thisNeededTime = ROOF_DIVIDE(neededResource, robots[i]);
+            if (thisNeededTime > neededTime)
+                neededTime = thisNeededTime;
+        }
+    }
+    if (hasRobots && neededTime <= leftTime)
+    {
+        // +1 for constructing the robot
+        waitTime = neededTime+1;
+        reward(waitResources, blueprint, waitRobots, waitTime);
+        pay(robotIndex, waitResources, blueprint);
+        waitRobots[robotIndex]++;
+    }
+
+    //////////////////////////////////// 
+    // Trying by building robot below //
+    ////////////////////////////////////
+    int belowResources[RES_COUNT];
+    int belowRobots[RES_COUNT];
+    memcpy(belowResources, resources, RES_COUNT*sizeof(*resources));
+    memcpy(belowRobots, robots, RES_COUNT*sizeof(*robots));
+
+    int belowTime = 1<<29;
+    if (robotIndex == 0)
+        goto finalEvaluation;
+
+    belowTime = minimumTime(robotIndex-1, belowResources, belowRobots, blueprint, leftTime);
+    if (belowTime > waitTime || belowTime >= leftTime)
+    {
+        belowTime = 1<<29;
+        goto finalEvaluation;
+    }
+    belowTime += minimumTime(robotIndex, belowResources, belowRobots, blueprint, leftTime-belowTime);
+
+    //////////////////////
+    // Final evaluation //
+    //////////////////////
+finalEvaluation:
+    // TODO: What to do if both is the same? More robots vs. more resources...
+    //if (belowTime == waitTime)
+       //printf("Not sure what to do...\n");
+    if (belowTime >= 1<<29 && waitTime >= 1<<29)
+    {
+        best[robotIndex*(TIME2+1)+leftTime] = -1;
+        for (int k = 0; k < RES_COUNT; k++)
+        {
+            bestRobots[(robotIndex*(TIME2+1)+leftTime)*RES_COUNT+k] = robots[k];
+            bestResources[(robotIndex*(TIME2+1)+leftTime)*RES_COUNT+k] = resources[k];
+        }
+        return 1<<29;
+    }
+    if (belowTime < waitTime)
+    {
+        best[robotIndex*(TIME2+1)+leftTime] = 2;
+        for (int k = 0; k < RES_COUNT; k++)
+        {
+            bestRobots[(robotIndex*(TIME2+1)+leftTime)*RES_COUNT+k] = robots[k];
+            bestResources[(robotIndex*(TIME2+1)+leftTime)*RES_COUNT+k] = resources[k];
+        }
+        memcpy(resources, belowResources, RES_COUNT*sizeof(*resources));
+        memcpy(robots, belowRobots, RES_COUNT*sizeof(*resources));
+        //printf("[%d] (%d) final evaluation yielded below! ", robotIndex, leftTime);
+        //print(resources, robots);
+        
+        return belowTime;
+    }
+    else
+    {
+        // If wait was the best, all belows are invalid
+        for (int i = leftTime; i >= 0; i--)
+        {
+            for (int j = 0; j < RES_COUNT; j++)
+                best[j*(TIME2+1)+i] = 0;
+        }
+        best[robotIndex*(TIME2+1)+leftTime] = 3;
+        for (int k = 0; k < RES_COUNT; k++)
+        {
+            bestRobots[(robotIndex*(TIME2+1)+leftTime)*RES_COUNT+k] = robots[k];
+            bestResources[(robotIndex*(TIME2+1)+leftTime)*RES_COUNT+k] = resources[k];
+        }
+        memcpy(resources, waitResources, RES_COUNT*sizeof(*resources));
+        memcpy(robots, waitRobots, RES_COUNT*sizeof(*resources));
+        //printf("[%d] (%d) final evaluation yielded wait! ", robotIndex, leftTime);
+        //print(resources, robots);
+        return waitTime;
+    }
+}
+
+void print(int *resources, int *robots)
+{
+    printf("[");
+    for (int i = 0; i < RES_COUNT-1; i++)
+        printf("%d, ", resources[i]);
+    printf("%d], [", resources[LAST]);
+    for (int i = 0; i < RES_COUNT-1; i++)
+        printf("%d, ", robots[i]);
+    printf("%d]\n", robots[LAST]);
 }
 
