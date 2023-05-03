@@ -37,9 +37,11 @@ int part1(FILE *in);
 int part2(FILE *in);
 Blueprint readBlueprint(FILE *in);
 void readBlueprints(FILE *in, Blueprint *blueprints);
+int maxGeodes1(Blueprint blueprint, int time, int *resources, int *dontBuy, int *robots);
 int maxGeodes(Blueprint blueprint, int time, int *resources, int *robots);
 void pay(int i, int *resources, Blueprint blueprint);
 void unpay(int i, int *resources, Blueprint blueprint);
+void reward1(int *a, int *b, Blueprint blueprint, int *robots);
 void reward(int *resources, Blueprint blueprint, int *robots, int mul);
 int couldPay(int *resources, Blueprint blueprint, int i);
 // Returns the time that is needed
@@ -66,13 +68,14 @@ int part1(FILE *in)
     for (int i = 0; i < BLP_COUNT; i++)
     {
         int resources[RES_COUNT] = {0};
+        int dontBuy[RES_COUNT] = {0};
         int robots[RES_COUNT] = {0};
         // 1 Ore collecting robot
         robots[0] = 1;
-        int geodes = maxGeodes(blueprints[i], TIME, resources, robots);
+        int geodes = maxGeodes1(blueprints[i], TIME, resources, dontBuy, robots);
         int qualityLevel = blueprints[i].id * geodes;
         sum += qualityLevel;
-        printf("Quality level for i=%d: %d (geodes=%d)\n", i, qualityLevel, geodes);
+        printf("Quality level for i=%d: %d\n", i, qualityLevel);
     }
     return sum;
 }
@@ -412,3 +415,60 @@ void print(int *resources, int *robots)
     printf("%d]\n", robots[LAST]);
 }
 
+void fillPayable(int *resources, Blueprint blueprint, int *payable)
+{
+    for (int i = 0; i < RES_COUNT; i++)
+        payable[i] = couldPay(resources, blueprint, i);
+}
+
+int maxGeodes1(Blueprint blueprint, int time, int *resources, int *dontBuy, int *robots)
+{
+    // No time left!
+    if (time <= 0)
+    {
+        //printf("No time left! Current resources: %d,%d,%d,%d\n", resources[0], resources[1], resources[2], resources[3]);
+        return resources[LAST];
+    }
+    // Init stuff
+    int max = 0;
+    int empty[RES_COUNT] = {0};
+    // Get payd
+    int next[RES_COUNT] = {0};
+    reward1(resources, next, blueprint, robots);
+    //printf("Reward yielded: %d,%d,%d,%d\n", next[0], next[1], next[2], next[3]);
+    // What *can* I pay?
+    int payable[RES_COUNT];
+    fillPayable(resources, blueprint, payable);
+    // Pay random stuff
+    for (int i = 0; i < RES_COUNT; i++)
+        if (payable[i] && !dontBuy[i])
+        {
+            pay(i, next, blueprint); 
+            robots[i]++;
+            int score = maxGeodes1(blueprint, time-1, next, empty, robots);
+            robots[i]--;
+            unpay(i, next, blueprint);
+            if (score > max)
+            {
+                //printf("New max is %d!\n", score);
+                max = score;
+            }
+        }
+    // Don't pay anything
+    // Set everything I *could* pay to not pay list
+    for (int i = 0; i < RES_COUNT; i++)
+        payable[i] |= dontBuy[i];
+    int score = maxGeodes1(blueprint, time-1, next, payable, robots);
+    if (score > max)
+        max = score;
+    return max;
+}
+
+void reward1(int *a, int *b, Blueprint blueprint, int *robots)
+{
+    for (int i = 0; i < RES_COUNT; i++)
+        b[i] = a[i];
+    for (int i = 0; i < RES_COUNT; i++)
+        for (int j = 0; j < RES_COUNT; j++)
+            b[j] += blueprint.robotRewards[i*RES_COUNT+j]*robots[i];
+}
