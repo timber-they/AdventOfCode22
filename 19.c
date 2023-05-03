@@ -6,16 +6,17 @@
 
 #define RES_COUNT 4
 #define LAST ((RES_COUNT)-1)
-//#define BLP_COUNT 30
-#define BLP_COUNT 2
+#define BLP_COUNT 30
+//#define BLP_COUNT 2
 #define TIME 24
 #define MAX_ORE ((TIME)*(TIME+1)/2+1)
 
-//#define BLP_COUNT2 3
-#define BLP_COUNT2 2
+#define BLP_COUNT2 3
+//#define BLP_COUNT2 2
 #define TIME2 32
 
-#define MAX_ROBOTS TIME2
+#define MAX_ORE_ROBOTS 5
+#define MAX_CLAY_ROBOTS 15
 
 // 0/0 := 0
 #define ROOF_DIVIDE(a,b) ((a) == 0 ? 0 : \
@@ -47,7 +48,7 @@ void print(int *resources, int *robots);
 
 int main()
 {
-    FILE *in = fopen("test19", "r");
+    FILE *in = fopen("in19", "r");
 
     printf("Part1: %d\n", part1(in));
     rewind(in);
@@ -131,61 +132,55 @@ int maxGeodes(Blueprint blueprint, int time, int *resources, int *robots)
     int bestRobots[((TIME2+1)*RES_COUNT)*RES_COUNT] = {0};
     int bestResources[((TIME2+1)*RES_COUNT)*RES_COUNT] = {0};
 
-    int nextResources[RES_COUNT];
-    int nextRobots[RES_COUNT];
-    while (1)
-    {
-        // Aim for geode robots
-        memcpy(nextResources, resources, RES_COUNT*sizeof(*resources));
-        memcpy(nextRobots, robots, RES_COUNT*sizeof(*resources));
-        int neededTime = minimumTime(LAST, nextResources, nextRobots, blueprint, time, best, bestRobots, bestResources);
-        printf("Best robot decisions were:\n");
-        for (int i = TIME2; i >= 0; i--)
-        {
-            for (int j = 3; j >= 0; j--)
-            {
-                if (best[j*(TIME2+1)+i])
-                {
-                    printf("[%d,%d,%d,%d] [%d,%d,%d,%d] (%d, %d=%d) ", bestRobots[(j*(TIME2+1)+i)*RES_COUNT+0], bestRobots[(j*(TIME2+1)+i)*RES_COUNT+1], bestRobots[(j*(TIME2+1)+i)*RES_COUNT+2], bestRobots[(j*(TIME2+1)+i)*RES_COUNT+3], bestResources[(j*(TIME2+1)+i)*RES_COUNT+0], bestResources[(j*(TIME2+1)+i)*RES_COUNT+1], bestResources[(j*(TIME2+1)+i)*RES_COUNT+2], bestResources[(j*(TIME2+1)+i)*RES_COUNT+3], j, i, TIME+1-i);
-                    switch(best[j*(TIME2+1)+i])
-                    {
-                        case -1:
-                            printf("No time\n");
-                            break;
-                        case 0:
-                            printf("Nothing\n");
-                            break;
-                        case 1:
-                            printf("direct\n");
-                            break;
-                        case 2:
-                            printf("below\n");
-                            break;
-                        case 3:
-                            printf("wait\n");
-                            break;
-                        case 4:
-                            printf("Ore\n");
-                            break;
-                    }
-                    best[j*(TIME2+1)+i] = 0;
-                }
-            }
-        }
-        printf("\n\n");
+    // Aim for geode robots
+    int geodeResources[RES_COUNT];
+    int geodeRobots[RES_COUNT];
+    memcpy(geodeResources, resources, RES_COUNT*sizeof(*resources));
+    memcpy(geodeRobots, robots, RES_COUNT*sizeof(*resources));
+    int neededTimeGeode = minimumTime(LAST, geodeResources, geodeRobots, blueprint, time, best, bestRobots, bestResources);
+    // Aim for ore robots
+    int oreResources[RES_COUNT];
+    int oreRobots[RES_COUNT];
+    memcpy(oreResources, resources, RES_COUNT*sizeof(*resources));
+    memcpy(oreRobots, robots, RES_COUNT*sizeof(*resources));
+    int neededTimeOre = geodeRobots[0] < MAX_ORE_ROBOTS ? minimumTime(0, oreResources, oreRobots, blueprint, time, best, bestRobots, bestResources) : 1<<29;
+    // Aim for clay
+    int clayResources[RES_COUNT];
+    int clayRobots[RES_COUNT];
+    memcpy(clayResources, resources, RES_COUNT*sizeof(*resources));
+    memcpy(clayRobots, robots, RES_COUNT*sizeof(*resources));
+    int neededTimeClay = clayRobots[1] < MAX_CLAY_ROBOTS ? minimumTime(1, clayResources, clayRobots, blueprint, time, best, bestRobots, bestResources) : 1<<29;
 
-        if (neededTime <= time)
-        {
-            memcpy(resources, nextResources, RES_COUNT*sizeof(*resources));
-            memcpy(robots, nextRobots, RES_COUNT*sizeof(*resources));
-            time -= neededTime;
-        }
-        else
-        {
-            // Can't build any geode robots anymore - don't build anything then
-            reward(resources, blueprint, robots, time);
-            break;
-        }
+    int geodesGeode = 0;
+    if (neededTimeGeode <= time)
+        geodesGeode = maxGeodes(blueprint, time-neededTimeGeode, geodeResources, geodeRobots);
+    else
+    {
+        // Can't build any geode robots anymore - don't build anything then
+        reward(resources, blueprint, robots, time);
+        return resources[LAST];
+    }
+    int geodesOre = 0;
+    if (neededTimeOre <= time)
+        geodesOre = maxGeodes(blueprint, time-neededTimeOre, oreResources, oreRobots);
+    int geodesClay = 0;
+    if (neededTimeClay <= time)
+        geodesClay = maxGeodes(blueprint, time-neededTimeClay, clayResources, clayRobots);
+
+    if (geodesOre >= geodesGeode && geodesOre >= geodesClay)
+    {
+        memcpy(resources, oreResources, RES_COUNT*sizeof(*resources));
+        memcpy(robots, oreRobots, RES_COUNT*sizeof(*resources));
+    }
+    else if (geodesGeode >= geodesOre && geodesGeode >= geodesClay)
+    {
+        memcpy(resources, geodeResources, RES_COUNT*sizeof(*resources));
+        memcpy(robots, geodeRobots, RES_COUNT*sizeof(*resources));
+    }
+    else
+    {
+        memcpy(resources, clayResources, RES_COUNT*sizeof(*resources));
+        memcpy(robots, clayRobots, RES_COUNT*sizeof(*resources));
     }
     return resources[LAST];
 }
