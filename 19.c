@@ -266,7 +266,6 @@ int waitForRobot(int robotIndex, int *resources, int *robots, Blueprint blueprin
     return time;
 }
 
-// TODO: At below the *bestRobots somehow switch...
 int buildRobotBelow(int robotIndex, int *resources, int *robots, Blueprint blueprint, int leftTime, int waitTime, int robotToBuild, int *best, int *bestRobots, int *bestResources)
 {
     int time = 1<<29;
@@ -318,8 +317,8 @@ int minimumTime(int robotIndex, int *resources, int *robots, Blueprint blueprint
     memcpy(belowResources, resources, RES_COUNT*sizeof(*resources));
     memcpy(belowRobots, robots, RES_COUNT*sizeof(*robots));
     memcpy(belowBest, best, (TIME2+1)*RES_COUNT*sizeof(*best));
-    memcpy(belowBestRobots, best, ((TIME2+1)*RES_COUNT)*RES_COUNT*sizeof(*best));
-    memcpy(belowBestResources, best, ((TIME2+1)*RES_COUNT)*RES_COUNT*sizeof(*best));
+    memcpy(belowBestRobots, bestRobots, ((TIME2+1)*RES_COUNT)*RES_COUNT*sizeof(*best));
+    memcpy(belowBestResources, bestResources, ((TIME2+1)*RES_COUNT)*RES_COUNT*sizeof(*best));
     int belowTime = buildRobotBelow(robotIndex, belowResources, belowRobots, blueprint, leftTime, waitTime, robotIndex-1, belowBest, belowBestRobots, belowBestResources);
 
     ///////////////////////////////
@@ -333,17 +332,14 @@ int minimumTime(int robotIndex, int *resources, int *robots, Blueprint blueprint
     memcpy(oreResources, resources, RES_COUNT*sizeof(*resources));
     memcpy(oreRobots, robots, RES_COUNT*sizeof(*robots));
     memcpy(oreBest, best, (TIME2+1)*RES_COUNT*sizeof(*best));
-    memcpy(oreBestRobots, best, ((TIME2+1)*RES_COUNT)*RES_COUNT*sizeof(*best));
-    memcpy(oreBestResources, best, ((TIME2+1)*RES_COUNT)*RES_COUNT*sizeof(*best));
+    memcpy(oreBestRobots, bestRobots, ((TIME2+1)*RES_COUNT)*RES_COUNT*sizeof(*best));
+    memcpy(oreBestResources, bestResources, ((TIME2+1)*RES_COUNT)*RES_COUNT*sizeof(*best));
     int oreTime = buildRobotBelow(robotIndex, oreResources, oreRobots, blueprint, leftTime, waitTime, 0, oreBest, oreBestRobots, oreBestResources);
 
 
     //////////////////////
     // Final evaluation //
     //////////////////////
-    // TODO: What to do if both is the same? More robots vs. more resources...
-    //if (belowTime == waitTime)
-       //printf("Not sure what to do...\n");
     int minCompared = MIN(belowTime, waitTime, oreTime);
     if (minCompared >= 1<<29)
     {
