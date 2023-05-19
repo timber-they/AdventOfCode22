@@ -8,6 +8,7 @@
 //#define NUMBERS 7
 
 #define _(x) (((x) < 0 ? (x)+((NUMBERS)*(((-(x))%NUMBERS)+1)) : (x)) % NUMBERS)
+#define __(x) (((x) < 0 ? (x)+((NUMBERS-1)*(((-(x))%(NUMBERS-1))+1)) : (x)) % (NUMBERS-1))
 
 typedef struct MutArray
 {
@@ -19,11 +20,11 @@ typedef struct MutArray
     int *valueIndices;
     // The original values in original order
     // -> Are unchanged
-    int *values;
+    long *values;
 } MutArray;
 
 int part1(FILE *in);
-int part2(FILE *in);
+long part2(FILE *in);
 void read(FILE *in, MutArray arr);
 void move(MutArray arr, int index);
 void print(MutArray arr);
@@ -35,7 +36,7 @@ int main()
 
     printf("Part1: %d\n", part1(in));
     rewind(in);
-    printf("Part2: %d\n", part2(in));
+    printf("Part2: %ld\n", part2(in));
 
     fclose(in);
     return 0;
@@ -45,7 +46,7 @@ int part1(FILE *in)
 {
     int indices[NUMBERS];
     int valueIndices[NUMBERS];
-    int values[NUMBERS];
+    long values[NUMBERS];
     MutArray arr = (MutArray) {
         .indices = indices,
         .valueIndices = valueIndices,
@@ -53,23 +54,51 @@ int part1(FILE *in)
     };
     read(in, arr);
     for (int i = 0; i < NUMBERS; i++)
+    {
+        //printf("Before %d:\n", i);
+        //print(arr);
         move(arr, i);
+    }
+    //printf("Final:\n");
+    //print(arr);
     int zeroIndex = mutIndexOfZero(arr);
     return arr.values[_(arr.valueIndices[_(zeroIndex+1000)])] +
         arr.values[_(arr.valueIndices[_(zeroIndex+2000)])] +
         arr.values[_(arr.valueIndices[_(zeroIndex+3000)])];
 }
 
-int part2(FILE *in)
+long part2(FILE *in)
 {
-    return in == NULL ? -2 : -3;
+    int indices[NUMBERS];
+    int valueIndices[NUMBERS];
+    long values[NUMBERS];
+    MutArray arr = (MutArray) {
+        .indices = indices,
+        .valueIndices = valueIndices,
+        .values = values
+    };
+    read(in, arr);
+    for (int i = 0; i < NUMBERS; i++)
+        arr.values[i] *= 811589153l;
+    for (int i = 0; i < NUMBERS*10; i++)
+    {
+        //printf("Before %d:\n", i);
+        //print(arr);
+        move(arr, i);
+    }
+    //printf("Final:\n");
+    //print(arr);
+    int zeroIndex = mutIndexOfZero(arr);
+    return arr.values[_(arr.valueIndices[_(zeroIndex+1000)])] +
+        arr.values[_(arr.valueIndices[_(zeroIndex+2000)])] +
+        arr.values[_(arr.valueIndices[_(zeroIndex+3000)])];
 }
 
 void read(FILE *in, MutArray arr)
 {
     for (int i = 0; i < NUMBERS; i++)
     {
-        if (fscanf(in, "%d\n", arr.values+i) != 1)
+        if (fscanf(in, "%ld\n", arr.values+i) != 1)
             fprintf(stderr, "ERROR in reading!\n");
         arr.indices[i] = i;
         arr.valueIndices[i] = i;
@@ -79,10 +108,11 @@ void read(FILE *in, MutArray arr)
 void move(MutArray arr, int index)
 {
     int mutIndex = arr.indices[_(index)];
-    int move = arr.values[_(index)];
+    long move = __(arr.values[_(index)]);
     if (move == 0)
         return;
     int sign = move > 0 ? 1 : -1;
+    //printf("Supposed to move %ld, but moving %ld\n", arr.values[_(index)], move);
     for (int i = 1; i <= move*sign; i++)
     {
         arr.valueIndices[_(mutIndex+(i*sign)-sign)] =
@@ -96,7 +126,7 @@ void move(MutArray arr, int index)
 void print(MutArray arr)
 {
     for (int i = 0; i < NUMBERS; i++)
-        printf("%d, ", arr.values[_(arr.valueIndices[_(i)])]);
+        printf("%ld, ", arr.values[_(arr.valueIndices[_(i)])]);
     printf("\n");
 }
 
