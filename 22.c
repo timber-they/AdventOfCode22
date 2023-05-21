@@ -6,6 +6,7 @@
 
 #define WIDTH 150
 #define HEIGHT 200
+#define CUBESIZE 50
 //#define WIDTH 16
 //#define HEIGHT 12
 
@@ -15,6 +16,7 @@ int part1(FILE *in);
 int part2(FILE *in);
 void readMap(FILE *in, int *buff);
 void move(int *map, int *x, int *y, int dir);
+void move2(int *map, int *x, int *y, int *dir);
 void runCommands(FILE *in, int *map, int *x, int *y, int *dir);
 int calculatePassword(int x, int y, int dir);
 void print(int *map);
@@ -223,5 +225,104 @@ void print(int *map)
         printf("\n");
     }
     printf("\n");
+}
+
+void move2(int *map, int *x, int *y, int *dir)
+{
+    whereWasI[_(*x,*y)] = dir+1;
+    int oldX = *x;
+    int oldY = *y;
+    switch(dir)
+    {
+        case 0:
+            // Right
+            (*x)++;
+            if (*x >= WIDTH || map[_(*x,*y)] < 0)
+            {
+                // Out of bounds!
+                if (*y < CUBESIZE)
+                {
+                    // 2 -> 5, right -> left, y -> -y
+                    *x = 2*CUBESIZE-1;
+                    *y = 3*CUBESIZE-*y-1;
+                    dir = 2;
+                }
+                else if (*y < 2*CUBESIZE)
+                {
+                    // 3 -> 2, right -> up
+                    *x = CUBESIZE+*y;
+                    *y = CUBESIZE-1;
+                    *dir = 3;
+                }
+                else if (*y < 3*CUBESIZE)
+                {
+                    // 5 -> 2, right -> left
+                    *x = 3*CUBESIZE-1;
+                    // 2*CUBESIZE -> CUBESIZE-1, 3*CUBESIZE-1 -> 0
+                    *y = 3*CUBESIZE-1-*y;
+                    *dir = 2;
+                }
+                else
+                {
+                    // 6 -> 5, right -> up
+                    *x = (*y-3*CUBESIZE*)+CUBESIZE;
+                    *y = 3*CUBESIZE-1;
+                    *dir = 3;
+                }
+            }
+            if (map[_(*x,*y)])
+                // Wall!
+                *x = oldX;
+            break;
+        case 1:
+            // TODO: Similar to 0
+            // Down
+            (*y)++;
+            if (*y >= HEIGHT || map[_(*x,*y)] < 0)
+            {
+                // Out of bounds!
+                int i;
+                for (i = 0; i < HEIGHT; i++)
+                    if (map[_(*x,i)] >= 0)
+                        break;
+                *y = i;
+            }
+            if (map[_(*x,*y)])
+                // Wall!
+                *y = oldY;
+            break;
+        case 2:
+            // Left
+            (*x)--;
+            if (*x < 0 || map[_(*x,*y)] < 0)
+            {
+                // Out of bounds!
+                int i;
+                for (i = WIDTH-1; i >= 0; i--)
+                    if (map[_(i,*y)] >= 0)
+                        break;
+                *x = i;
+            }
+            if (map[_(*x,*y)])
+                // Wall!
+                *x = oldX;
+            break;
+        case 3:
+            // Up
+            (*y)--;
+            if (*y < 0 || map[_(*x,*y)] < 0)
+            {
+                // Out of bounds!
+                int i;
+                for (i = HEIGHT-1; i >= 0; i--)
+                    if (map[_(*x,i)] >= 0)
+                        break;
+                *y = i;
+            }
+            if (map[_(*x,*y)])
+                // Wall!
+                *y = oldY;
+            break;
+    }
 }
 
