@@ -75,8 +75,6 @@ long part2(FILE *in)
     monkeys[rootIndex].op = '=';
 
     solve(monkeys, magicName);
-    //printf("Original:\n");
-    //print(monkeys, rootIndex, 0);
     fillContainsX(monkeys, rootIndex);
 
     while(1)
@@ -84,8 +82,6 @@ long part2(FILE *in)
         long res = reduce(monkeys, rootIndex);
         if (res)
             return res;
-        //printf("Reduced:\n");
-        //print(monkeys, rootIndex, 0);
     }
 
     return -1;
