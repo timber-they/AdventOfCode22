@@ -6,15 +6,16 @@
 
 #define INITIAL_SIZE 73
 //#define INITIAL_SIZE 7
+#define OFF 1200
 #define ROUNDS 10
 
-#define _(x,y) ((y)*((INITIAL_SIZE)+2*(ROUNDS))+(x))
+#define _(x,y) ((y)*((INITIAL_SIZE)+2*(OFF))+(x))
 #define abs(x) ((x) < 0 ? -(x) : (x))
 
 int part1(FILE *in);
 int part2(FILE *in);
 void read(FILE *in, int *buff, int offset);
-void iterate(int *map, int direction);
+int iterate(int *map, int direction, int iteration);
 void move(int *x, int *y, int direction);
 int isFree(int *map, int x, int y, int direction);
 void smallestRectangle(int *map, int *x1, int *x2, int *y1, int *y2);
@@ -36,23 +37,39 @@ int main()
 
 int part1(FILE *in)
 {
-    int map[(INITIAL_SIZE+2*ROUNDS)*(INITIAL_SIZE+2*ROUNDS)] = {0};
-    read(in, map, ROUNDS);
+    int *map = calloc((INITIAL_SIZE+2*OFF)*(INITIAL_SIZE+2*OFF), sizeof(*map));
+    read(in, map, OFF);
     //printf("Initial map:\n");
     //print(map);
     for (int i = 0; i < ROUNDS; i++)
     {
         //printf("Iteration %d:\n", i);
-        iterate(map, i%4);
+        iterate(map, i%4, i);
     }
     int x1, x2, y1, y2;
     smallestRectangle(map, &x1, &x2, &y1, &y2);
-    return countEmptyGround(map, x1, x2, y1, y2);
+    int res = countEmptyGround(map, x1, x2, y1, y2);
+    free(map);
+    return res;
 }
 
 int part2(FILE *in)
 {
-    return in == NULL ? -3 : -2;
+    int *map = calloc((INITIAL_SIZE+2*OFF)*(INITIAL_SIZE+2*OFF), sizeof(*map));
+    read(in, map, OFF);
+    //printf("Initial map:\n");
+    //print(map);
+    int i;
+    for (i = 0; i < OFF; i++)
+    {
+        //printf("Iteration %d:\n", i);
+        if (!iterate(map, i%4, i))
+            break;
+    }
+    free(map);
+    if (i == OFF)
+        fprintf(stderr, "Not enough OFF!\n");
+    return i+1;
 }
 
 void read(FILE *in, int *buff, int offset)
@@ -66,10 +83,10 @@ void read(FILE *in, int *buff, int offset)
     }
 }
 
-void iterate(int *map, int direction)
+int iterate(int *map, int direction, int iteration)
 {
-    for (int y = 0; y < INITIAL_SIZE+2*ROUNDS; y++)
-        for (int x = 0; x < INITIAL_SIZE+2*ROUNDS; x++)
+    for (int y = OFF-iteration-1; y < INITIAL_SIZE+OFF+iteration; y++)
+        for (int x = OFF-iteration-1; x < INITIAL_SIZE+OFF+iteration; x++)
             if (map[_(x,y)] == 1 && wantsToMove(map, x, y))
             {
                 for (int i = 0; i < 4; i++)
@@ -103,10 +120,13 @@ void iterate(int *map, int direction)
     //printf("After proposals:\n");
     //print(map);
     // Do the valid proposals
-    for (int y = 0; y < INITIAL_SIZE+2*ROUNDS; y++)
-        for (int x = 0; x < INITIAL_SIZE+2*ROUNDS; x++)
+    int didSomething = 0;
+    iteration++;
+    for (int y = OFF-iteration-1; y < INITIAL_SIZE+OFF+iteration; y++)
+        for (int x = OFF-iteration-1; x < INITIAL_SIZE+OFF+iteration; x++)
             if (map[_(x,y)] > 3)
             {
+                didSomething = 1;
                 // Valid proposal - get old position
                 int ox = x, oy = y;
                 move(&ox, &oy, map[_(x,y)]);
@@ -119,6 +139,7 @@ void iterate(int *map, int direction)
                 map[_(x,y)] = 0;
     //printf("After moving:\n");
     //print(map);
+    return didSomething;
 }
 
 void move(int *x, int *y, int direction)
@@ -173,10 +194,10 @@ void smallestRectangle(int *map, int *x1, int *x2, int *y1, int *y2)
     for (int x = 0;; x++)
     {
         int y;
-        for (y = 0; y < INITIAL_SIZE+2*ROUNDS; y++)
+        for (y = 0; y < INITIAL_SIZE+2*OFF; y++)
             if (map[_(x,y)])
                 break;
-        if (y != INITIAL_SIZE+2*ROUNDS)
+        if (y != INITIAL_SIZE+2*OFF)
         {
             // Found an elf!
             *x1 = x;
@@ -184,13 +205,13 @@ void smallestRectangle(int *map, int *x1, int *x2, int *y1, int *y2)
         }
     }
 
-    for (int x = INITIAL_SIZE+2*ROUNDS-1;; x--)
+    for (int x = INITIAL_SIZE+2*OFF-1;; x--)
     {
         int y;
-        for (y = 0; y < INITIAL_SIZE+2*ROUNDS; y++)
+        for (y = 0; y < INITIAL_SIZE+2*OFF; y++)
             if (map[_(x,y)])
                 break;
-        if (y != INITIAL_SIZE+2*ROUNDS)
+        if (y != INITIAL_SIZE+2*OFF)
         {
             // Found an elf!
             *x2 = x;
@@ -201,10 +222,10 @@ void smallestRectangle(int *map, int *x1, int *x2, int *y1, int *y2)
     for (int y = 0;; y++)
     {
         int x;
-        for (x = 0; x < INITIAL_SIZE+2*ROUNDS; x++)
+        for (x = 0; x < INITIAL_SIZE+2*OFF; x++)
             if (map[_(x,y)])
                 break;
-        if (x != INITIAL_SIZE+2*ROUNDS)
+        if (x != INITIAL_SIZE+2*OFF)
         {
             // Found an elf!
             *y1 = y;
@@ -212,13 +233,13 @@ void smallestRectangle(int *map, int *x1, int *x2, int *y1, int *y2)
         }
     }
 
-    for (int y = INITIAL_SIZE+2*ROUNDS-1;; y--)
+    for (int y = INITIAL_SIZE+2*OFF-1;; y--)
     {
         int x;
-        for (x = 0; x < INITIAL_SIZE+2*ROUNDS; x++)
+        for (x = 0; x < INITIAL_SIZE+2*OFF; x++)
             if (map[_(x,y)])
                 break;
-        if (x != INITIAL_SIZE+2*ROUNDS)
+        if (x != INITIAL_SIZE+2*OFF)
         {
             // Found an elf!
             *y2 = y;
@@ -238,9 +259,9 @@ int countEmptyGround(int *map, int x1, int x2, int y1, int y2)
 
 void print(int *map)
 {
-    for (int y = 0; y < INITIAL_SIZE+2*ROUNDS; y++)
+    for (int y = 0; y < INITIAL_SIZE+2*OFF; y++)
     {
-        for (int x = 0; x < INITIAL_SIZE+2*ROUNDS; x++)
+        for (int x = 0; x < INITIAL_SIZE+2*OFF; x++)
         {
             switch(map[_(x,y)])
             {
