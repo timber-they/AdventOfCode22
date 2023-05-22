@@ -7,8 +7,9 @@
 #define WIDTH 150
 #define HEIGHT 200
 #define CUBESIZE 50
-//#define WIDTH 16
-//#define HEIGHT 12
+//#define WIDTH 12
+//#define HEIGHT 16
+//#define CUBESIZE 4
 
 #define _(x,y) ((y)*(WIDTH) + (x))
 
@@ -17,7 +18,7 @@ int part2(FILE *in);
 void readMap(FILE *in, int *buff);
 void move(int *map, int *x, int *y, int dir);
 void move2(int *map, int *x, int *y, int *dir);
-void runCommands(FILE *in, int *map, int *x, int *y, int *dir);
+void runCommands(FILE *in, int *map, int *x, int *y, int *dir, int part);
 int calculatePassword(int x, int y, int dir);
 void print(int *map);
 
@@ -45,14 +46,24 @@ int part1(FILE *in)
         if (!map[_(x,y)])
             break;
     int dir = 0;
-    runCommands(in, map, &x, &y, &dir);
-    //print(map);
+    runCommands(in, map, &x, &y, &dir, 1);
     return calculatePassword(x, y, dir);
 }
 
 int part2(FILE *in)
 {
-    return in == NULL ? -3 : -2;
+    int map[WIDTH*HEIGHT];
+    for (int i = 0; i < WIDTH*HEIGHT; i++)
+        whereWasI[i] = 0;
+    readMap(in, map);
+    int x;
+    int y = 0;
+    for (x = 0; x < WIDTH; x++)
+        if (!map[_(x,y)])
+            break;
+    int dir = 0;
+    runCommands(in, map, &x, &y, &dir, 2);
+    return calculatePassword(x, y, dir);
 }
 
 void readMap(FILE *in, int *buff)
@@ -157,7 +168,7 @@ void move(int *map, int *x, int *y, int dir)
     }
 }
 
-void runCommands(FILE *in, int *map, int *x, int *y, int *dir)
+void runCommands(FILE *in, int *map, int *x, int *y, int *dir, int part)
 {
     int c;
     int currentNumber = 0;
@@ -167,9 +178,13 @@ void runCommands(FILE *in, int *map, int *x, int *y, int *dir)
             currentNumber = currentNumber*10 + c-'0';
         else
         {
-            //printf("Moving forward %d to %d (%d,%d -> %d)\n", currentNumber, *dir, *x, *y, map[_(*x,*y)]);
             for (int i = 0; i < currentNumber; i++)
-                move(map, x, y, *dir);
+            {
+                if (part == 1)
+                    move(map, x, y, *dir);
+                else
+                    move2(map, x, y, dir);
+            }
             currentNumber = 0;
             if (c == 'L')
             {
@@ -182,7 +197,12 @@ void runCommands(FILE *in, int *map, int *x, int *y, int *dir)
         }
     }
     for (int i = 0; i < currentNumber; i++)
-        move(map, x, y, *dir);
+    {
+        if (part == 1)
+            move(map, x, y, *dir);
+        else
+            move2(map, x, y, dir);
+    }
 }
 
 int calculatePassword(int x, int y, int dir)
@@ -229,10 +249,11 @@ void print(int *map)
 
 void move2(int *map, int *x, int *y, int *dir)
 {
-    whereWasI[_(*x,*y)] = dir+1;
+    whereWasI[_(*x,*y)] = *dir+1;
     int oldX = *x;
     int oldY = *y;
-    switch(dir)
+    int oldDir = *dir;
+    switch(*dir)
     {
         case 0:
             // Right
@@ -244,13 +265,13 @@ void move2(int *map, int *x, int *y, int *dir)
                 {
                     // 2 -> 5, right -> left, y -> -y
                     *x = 2*CUBESIZE-1;
-                    *y = 3*CUBESIZE-*y-1;
-                    dir = 2;
+                    *y = 3*CUBESIZE-1-*y;
+                    *dir = 2;
                 }
                 else if (*y < 2*CUBESIZE)
                 {
                     // 3 -> 2, right -> up
-                    *x = CUBESIZE+*y;
+                    *x = 2*CUBESIZE+(*y-CUBESIZE);
                     *y = CUBESIZE-1;
                     *dir = 3;
                 }
@@ -258,38 +279,59 @@ void move2(int *map, int *x, int *y, int *dir)
                 {
                     // 5 -> 2, right -> left
                     *x = 3*CUBESIZE-1;
-                    // 2*CUBESIZE -> CUBESIZE-1, 3*CUBESIZE-1 -> 0
-                    *y = 3*CUBESIZE-1-*y;
+                    *y = CUBESIZE-1-(*y-2*CUBESIZE);
                     *dir = 2;
                 }
                 else
                 {
                     // 6 -> 5, right -> up
-                    *x = (*y-3*CUBESIZE*)+CUBESIZE;
+                    *x = CUBESIZE+(*y-3*CUBESIZE);
                     *y = 3*CUBESIZE-1;
                     *dir = 3;
                 }
             }
             if (map[_(*x,*y)])
+            {
                 // Wall!
                 *x = oldX;
+                *y = oldY;
+                *dir = oldDir;
+            }
             break;
         case 1:
-            // TODO: Similar to 0
             // Down
             (*y)++;
             if (*y >= HEIGHT || map[_(*x,*y)] < 0)
             {
                 // Out of bounds!
-                int i;
-                for (i = 0; i < HEIGHT; i++)
-                    if (map[_(*x,i)] >= 0)
-                        break;
-                *y = i;
+                if (*x < CUBESIZE)
+                {
+                    // 6 -> 2, down -> down
+                    *x += 2*CUBESIZE;
+                    *y = 0;
+                }
+                else if (*x < 2*CUBESIZE)
+                {
+                    // 5 -> 6, down -> left
+                    *y = 3*CUBESIZE+(*x-CUBESIZE);
+                    *x = CUBESIZE-1;
+                    *dir = 2;
+                }
+                else
+                {
+                    // 2 -> 3, down -> left
+                    *y = CUBESIZE+(*x-2*CUBESIZE);
+                    *x = 2*CUBESIZE-1;
+                    *dir = 2;
+                }
             }
             if (map[_(*x,*y)])
+            {
                 // Wall!
+                *x = oldX;
                 *y = oldY;
+                *dir = oldDir;
+            }
             break;
         case 2:
             // Left
@@ -297,15 +339,42 @@ void move2(int *map, int *x, int *y, int *dir)
             if (*x < 0 || map[_(*x,*y)] < 0)
             {
                 // Out of bounds!
-                int i;
-                for (i = WIDTH-1; i >= 0; i--)
-                    if (map[_(i,*y)] >= 0)
-                        break;
-                *x = i;
+                if (*y < CUBESIZE)
+                {
+                    // 1 -> 4, left -> right
+                    *x = 0;
+                    *y = 3*CUBESIZE-1-*y;
+                    *dir = 0;
+                }
+                else if (*y < 2*CUBESIZE)
+                {
+                    // 3 -> 4, left -> down
+                    *x = 0+*y-CUBESIZE;
+                    *y = 2*CUBESIZE;
+                    *dir = 1;
+                }
+                else if (*y < 3*CUBESIZE)
+                {
+                    // 4 -> 1, left -> right
+                    *x = CUBESIZE;
+                    *y = CUBESIZE-1-(*y-2*CUBESIZE);
+                    *dir = 0;
+                }
+                else
+                {
+                    // 6 -> 1, left -> down
+                    *x = CUBESIZE+(*y-3*CUBESIZE);
+                    *y = 0;
+                    *dir = 1;
+                }
             }
             if (map[_(*x,*y)])
+            {
                 // Wall!
                 *x = oldX;
+                *y = oldY;
+                *dir = oldDir;
+            }
             break;
         case 3:
             // Up
@@ -313,15 +382,34 @@ void move2(int *map, int *x, int *y, int *dir)
             if (*y < 0 || map[_(*x,*y)] < 0)
             {
                 // Out of bounds!
-                int i;
-                for (i = HEIGHT-1; i >= 0; i--)
-                    if (map[_(*x,i)] >= 0)
-                        break;
-                *y = i;
+                if (*x < CUBESIZE)
+                {
+                    // 4 -> 3, up -> right
+                    *y = CUBESIZE+*x;
+                    *x = CUBESIZE;
+                    *dir = 0;
+                }
+                else if (*x < 2*CUBESIZE)
+                {
+                    // 1 -> 6, up -> right
+                    *y = 3*CUBESIZE+(*x-CUBESIZE);
+                    *x = 0;
+                    *dir = 0;
+                }
+                else
+                {
+                    // 2 -> 6, up -> up
+                    *x -= 2*CUBESIZE;
+                    *y = 4*CUBESIZE-1;
+                }
             }
             if (map[_(*x,*y)])
+            {
                 // Wall!
+                *x = oldX;
                 *y = oldY;
+                *dir = oldDir;
+            }
             break;
     }
 }
