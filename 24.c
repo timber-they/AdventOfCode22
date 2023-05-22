@@ -6,9 +6,11 @@
 
 #define WIDTH 150
 #define HEIGHT 20
+#define LOOPING 300
 #define MAX_TIME ((WIDTH)*(HEIGHT))
 
-#define _(x,y,time) ((time)*(WIDTH)*(HEIGHT) + (y)*(WIDTH) + (x))
+#define _(x,y,time) (((time)%(LOOPING))*(WIDTH)*(HEIGHT) + (y)*(WIDTH) + (x))
+#define abs(x) ((x) < 0 ? -(x) : (x))
 
 typedef struct Blizzard
 {
@@ -22,8 +24,10 @@ int part2(FILE *in);
 int read(FILE *in, Blizzard *buff);
 void blockedDirections(Blizzard *blizzards, int count, int x, int y, int *blocked);
 void iterate(Blizzard *blizzards, int count);
-void unIterate(Blizzard *blizzards, int count);
-int shortestPath(Blizzard *blizzards, int count, int x, int y, int *memory, int time, int currentShortest);
+void generateMaps(Blizzard *blizzards, int count, int *maps);
+int dijkstra(int *maps, int startT);
+int doesEdgeExist(int *maps, int sx, int sy, int st, int ex, int ey, int et);
+void printMap(int *maps, int t);
 
 int main()
 {
@@ -41,8 +45,19 @@ int part1(FILE *in)
 {
     Blizzard blizzards[WIDTH*HEIGHT] = {0};
     int count = read(in, blizzards);
-    int *memory = calloc(WIDTH*HEIGHT*MAX_TIME, sizeof(*memory));
-    return shortestPath(blizzards, count, 0, -1, memory, 0, 1<<30);
+    int maps[WIDTH*HEIGHT*LOOPING] = {0};
+    generateMaps(blizzards, count, maps);
+    // An edge exists from (x,y,t) -> (x+-1,y+-1,(t+1)%LOOPING) with cost 1 IF the new position is free
+    // AND from (WIDTH-1,HEIGHT-1,t1) -> (WIDTH-1,HEIGHT-1,t2), for any t1,t2 with cost 0
+    // The start node is believed to be at (0,0,1), so 1 minute has already passed
+    // The end node is at (WIDTH-1,HEIGHT-1,t) for any given t
+    for (int t = 1; t < LOOPING; t++)
+    {
+        int new = dijkstra(maps, t);
+        if (new < 1<<30)
+            return new;
+    }
+    return -1;
 }
 
 int part2(FILE *in)
@@ -159,95 +174,152 @@ void iterate(Blizzard *blizzards, int count)
     }
 }
 
-void unIterate(Blizzard *blizzards, int count)
+void generateMaps(Blizzard *blizzards, int count, int *maps)
 {
-    for (int i = 0; i < count; i++)
+    for (int t = 0; t < LOOPING; t++)
     {
-        switch(blizzards[i].direction)
-        {
-            case 0:
-                blizzards[i].x--;
-                break;
-            case 1:
-                blizzards[i].y--;
-                break;
-            case 2:
-                blizzards[i].x++;
-                break;
-            case 3:
-                blizzards[i].y++;
-                break;
-        }
-        while (blizzards[i].x < 0)
-            blizzards[i].x += WIDTH;
-        while (blizzards[i].y < 0)
-            blizzards[i].y += HEIGHT;
-        blizzards[i].x = blizzards[i].x % WIDTH;
-        blizzards[i].y = blizzards[i].y % HEIGHT;
+        for (int i = 0; i < count; i++)
+            maps[_(blizzards[i].x, blizzards[i].y, t)] = blizzards[i].direction+1;
+        iterate(blizzards, count);
     }
 }
 
-int shortestPath(Blizzard *blizzards, int count, int x, int y, int *memory, int time, int currentShortest)
+int doesEdgeExist(int *maps, int sx, int sy, int st, int ex, int ey, int et)
 {
-    if (time >= MAX_TIME)
-    {
-        //fprintf(stderr, "Exceeded time limit!\n");
-        return 1<<30;
-    }
-    if (y >= 0)
-    {
-        if (memory[_(x,y,time)])
-            return memory[_(x,y,time)];
-        if (x == WIDTH-1 && y == WIDTH-1)
-            return (memory[_(x,y,time)] = 1);
-        if (currentShortest <= 0)
-            return 1<<30;
-    }
+    // An edge exists from (x,y,t) -> (x+-1,y+-1,(t+1)%LOOPING) with cost 1 IF the new position is free
+    // AND from (WIDTH-1,HEIGHT-1,t1) -> (WIDTH-1,HEIGHT-1,t2), for any t1,t2 with cost 0
+    // The start node is believed to be at (0,0,1), so 1 minute has already passed
+    // The end node is at (WIDTH-1,HEIGHT-1,t) for any given t
+    if (et - st != 1)
+        return 0;
+    if (abs(sx-ex) > 1 || abs(sy-ey) > 1)
+        return 0;
+    if (ex < 0 || ey < 0 || ex >= WIDTH || ey >= HEIGHT)
+        return 0;
+    if (_(ex,ey,et) >= 3636452 / (int)sizeof(*maps) || _(ex,ey,et) >= WIDTH*HEIGHT*LOOPING)
+        fprintf(stderr, "OH NO, %d,%d,%d\n", ex, ey, et);
+    if (maps[_(ex,ey,et)])
+        return 0;
+    return 1;
+}
 
-    int blocked[5] = {0};
-    blockedDirections(blizzards, count, x, y, blocked);
-    iterate(blizzards, count);
-    int min = currentShortest;
+int dijkstra(int *maps, int startT)
+{
+    int *lowestDistances = malloc(WIDTH*HEIGHT*LOOPING*sizeof(*lowestDistances));
+    for (int i = 0; i < WIDTH*HEIGHT*LOOPING; i++)
+        lowestDistances[i] = 1<<30;
+    lowestDistances[_(0,0,startT)] = startT;
 
-    if (!blocked[0])
+    int *out = calloc(WIDTH*HEIGHT*LOOPING, sizeof(*out));
+    int *nonInfiniteIndices = malloc(WIDTH*HEIGHT*LOOPING*sizeof(*nonInfiniteIndices));
+    nonInfiniteIndices[0] = _(0,0,startT);
+    int nonInfiniteIndicesCount = 1;
+    int nonInfiniteIndicesStart = 0;
+
+    int ret = 1<<30;
+    while(1)
     {
-        int new = shortestPath(blizzards, count, x+1, y, memory, time+1, min-1) + 1;
-        if (new < min)
-            min = new;
+        if (nonInfiniteIndicesStart >= nonInfiniteIndicesCount)
+            goto end;
+        int minIndex = nonInfiniteIndices[nonInfiniteIndicesStart++];
+        int minDistance = lowestDistances[minIndex];
+        if (minIndex == -1)
+            goto end;
+
+        int x = minIndex % WIDTH;
+        int y = (minIndex / WIDTH) % HEIGHT;
+        int t = minIndex / WIDTH / HEIGHT;
+
+        if (x == WIDTH-1 && y == HEIGHT-1)
+        {
+            // Found my goal!
+            // +1 because I need to go one step further
+            ret = minDistance+1;
+            goto end;
+        }
+
+        out[minIndex] = 1;
+
+        // Right
+        if (doesEdgeExist(maps, x, y, t, x+1, y, t+1) &&
+                minDistance + 1 < lowestDistances[_(x+1, y, t+1)] &&
+                !out[_(x+1, y, t+1)])
+        {
+            if (lowestDistances[_(x+1, y, t+1)] >= 1<<30)
+                nonInfiniteIndices[nonInfiniteIndicesCount++] = _(x+1, y, t+1);
+            lowestDistances[_(x+1, y, t+1)] = minDistance+1;
+        }
+        // Left
+        if (doesEdgeExist(maps, x, y, t, x-1, y, t+1) &&
+                minDistance + 1 < lowestDistances[_(x-1, y, t+1)] &&
+                !out[_(x-1, y, t+1)])
+        {
+            if (lowestDistances[_(x-1, y, t+1)] >= 1<<30)
+                nonInfiniteIndices[nonInfiniteIndicesCount++] = _(x-1, y, t+1);
+            lowestDistances[_(x-1, y, t+1)] = minDistance+1;
+        }
+        // Down
+        if (doesEdgeExist(maps, x, y, t, x, y+1, t+1) &&
+                minDistance + 1 < lowestDistances[_(x, y+1, t+1)] &&
+                !out[_(x, y+1, t+1)])
+        {
+            if (lowestDistances[_(x, y+1, t+1)] >= 1<<30)
+                nonInfiniteIndices[nonInfiniteIndicesCount++] = _(x, y+1, t+1);
+            lowestDistances[_(x, y+1, t+1)] = minDistance+1;
+        }
+        // Up
+        if (doesEdgeExist(maps, x, y, t, x, y-1, t+1) &&
+                minDistance + 1 < lowestDistances[_(x, y-1, t+1)] &&
+                !out[_(x, y-1, t+1)])
+        {
+            if (lowestDistances[_(x, y-1, t+1)] >= 1<<30)
+                nonInfiniteIndices[nonInfiniteIndicesCount++] = _(x, y-1, t+1);
+            lowestDistances[_(x, y-1, t+1)] = minDistance+1;
+        }
+        // Stationary
+        if (doesEdgeExist(maps, x, y, t, x, y, t+1) &&
+                minDistance + 1 < lowestDistances[_(x, y, t+1)] &&
+                !out[_(x, y, t+1)])
+        {
+            if (lowestDistances[_(x, y, t+1)] >= 1<<30)
+                nonInfiniteIndices[nonInfiniteIndicesCount++] = _(x, y, t+1);
+            lowestDistances[_(x, y, t+1)] = minDistance+1;
+        }
     }
-    if (!blocked[1])
+end:
+    free(lowestDistances);
+    free(out);
+    free(nonInfiniteIndices);
+    return ret;
+}
+
+void printMap(int *maps, int t)
+{
+    for (int y = 0; y < HEIGHT; y++)
     {
-        int new = shortestPath(blizzards, count, x, y+1, memory, time+1, min-1) + 1;
-        if (new < min)
-            min = new;
+        for (int x = 0; x < WIDTH; x++)
+            switch(maps[_(x,y,t)])
+            {
+                case 0:
+                    printf(".");
+                    break;
+                case 1:
+                    printf(">");
+                    break;
+                case 2:
+                    printf("v");
+                    break;
+                case 3:
+                    printf("<");
+                    break;
+                case 4:
+                    printf("^");
+                    break;
+                default:
+                    printf("%d", maps[_(x,y,t)]);
+                    break;
+            }
+        printf("\n");
     }
-    if (!blocked[2])
-    {
-        int new = shortestPath(blizzards, count, x-1, y, memory, time+1, min-1) + 1;
-        if (new < min)
-            min = new;
-    }
-    if (!blocked[3])
-    {
-        int new = shortestPath(blizzards, count, x, y-1, memory, time+1, min-1) + 1;
-        if (new < min)
-            min = new;
-    }
-    if (!blocked[4])
-    {
-        // Do nothing
-        int new = shortestPath(blizzards, count, x, y, memory, time+1, min-1) + 1;
-        if (new < min)
-            min = new;
-    }
-    unIterate(blizzards, count);
-    if (min < currentShortest)
-    {
-        return y >= 0
-            ? (memory[_(x,y,time)] = min)
-            : min;
-    }
-    else
-        return 1<<30;
 }
 
