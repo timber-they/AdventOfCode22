@@ -25,7 +25,7 @@ int read(FILE *in, Blizzard *buff);
 void blockedDirections(Blizzard *blizzards, int count, int x, int y, int *blocked);
 void iterate(Blizzard *blizzards, int count);
 void generateMaps(Blizzard *blizzards, int count, int *maps);
-int dijkstra(int *maps, int startT);
+int bfs(int *maps, int startX, int startY, int startT, int endX, int endY);
 int doesEdgeExist(int *maps, int sx, int sy, int st, int ex, int ey, int et);
 void printMap(int *maps, int t);
 
@@ -47,22 +47,50 @@ int part1(FILE *in)
     int count = read(in, blizzards);
     int maps[WIDTH*HEIGHT*LOOPING] = {0};
     generateMaps(blizzards, count, maps);
-    // An edge exists from (x,y,t) -> (x+-1,y+-1,(t+1)%LOOPING) with cost 1 IF the new position is free
-    // AND from (WIDTH-1,HEIGHT-1,t1) -> (WIDTH-1,HEIGHT-1,t2), for any t1,t2 with cost 0
-    // The start node is believed to be at (0,0,1), so 1 minute has already passed
-    // The end node is at (WIDTH-1,HEIGHT-1,t) for any given t
-    for (int t = 1; t < LOOPING; t++)
+    for (int t = 1; t <= LOOPING; t++)
     {
-        int new = dijkstra(maps, t);
-        if (new < 1<<30)
-            return new;
+        int time = bfs(maps, 0, 0, t, WIDTH-1, HEIGHT-1);
+        if (time < 1<<30)
+            return time;
     }
     return -1;
 }
 
 int part2(FILE *in)
 {
-    return in == NULL ? -3 : -2;
+    Blizzard blizzards[WIDTH*HEIGHT] = {0};
+    int count = read(in, blizzards);
+    int maps[WIDTH*HEIGHT*LOOPING] = {0};
+    generateMaps(blizzards, count, maps);
+    int time;
+    // Go to goal
+    for (int t = 1; t <= LOOPING; t++)
+    {
+        time = bfs(maps, 0, 0, t, WIDTH-1, HEIGHT-1);
+        if (time < 1<<30)
+            break;
+    }
+    // Get the snacks
+    for (int t = 1; t <= LOOPING; t++)
+    {
+        int new = bfs(maps, WIDTH-1, HEIGHT-1, time+t, 0, 0);
+        if (new < 1<<30)
+        {
+            time = new;
+            break;
+        }
+    }
+    // Go to goal again
+    for (int t = 1; t <= LOOPING; t++)
+    {
+        int new = bfs(maps, 0, 0, time+t, WIDTH-1, HEIGHT-1);
+        if (new < 1<<30)
+        {
+            time = new;
+            break;
+        }
+    }
+    return time;
 }
 
 int read(FILE *in, Blizzard *buff)
@@ -196,100 +224,75 @@ int doesEdgeExist(int *maps, int sx, int sy, int st, int ex, int ey, int et)
         return 0;
     if (ex < 0 || ey < 0 || ex >= WIDTH || ey >= HEIGHT)
         return 0;
-    if (_(ex,ey,et) >= 3636452 / (int)sizeof(*maps) || _(ex,ey,et) >= WIDTH*HEIGHT*LOOPING)
-        fprintf(stderr, "OH NO, %d,%d,%d\n", ex, ey, et);
     if (maps[_(ex,ey,et)])
         return 0;
     return 1;
 }
 
-int dijkstra(int *maps, int startT)
+void try(int x, int y, int t, int nx, int ny, int nt, int *lowestDistances, int currenDistance, int *out, int *current, int *currentCount, int *maps)
+{
+    if (doesEdgeExist(maps, x, y, t, nx, ny, nt) &&
+            currenDistance + 1 < lowestDistances[_(nx, ny, nt)] &&
+            !out[_(nx, ny, nt)])
+    {
+        if (lowestDistances[_(nx, ny, nt)] >= 1<<30)
+            current[(*currentCount)++] = _(nx, ny, nt);
+        lowestDistances[_(nx, ny, nt)] = currenDistance+1;
+    }
+}
+
+int bfs(int *maps, int startX, int startY, int startT, int endX, int endY)
 {
     int *lowestDistances = malloc(WIDTH*HEIGHT*LOOPING*sizeof(*lowestDistances));
     for (int i = 0; i < WIDTH*HEIGHT*LOOPING; i++)
         lowestDistances[i] = 1<<30;
-    lowestDistances[_(0,0,startT)] = startT;
+    lowestDistances[_(startX,startY,startT)] = startT;
 
     int *out = calloc(WIDTH*HEIGHT*LOOPING, sizeof(*out));
-    int *nonInfiniteIndices = malloc(WIDTH*HEIGHT*LOOPING*sizeof(*nonInfiniteIndices));
-    nonInfiniteIndices[0] = _(0,0,startT);
-    int nonInfiniteIndicesCount = 1;
-    int nonInfiniteIndicesStart = 0;
+    int *current = malloc(WIDTH*HEIGHT*LOOPING*sizeof(*current));
+    current[0] = _(startX,startY,startT);
+    int currentCount = 1;
+    int currentStart = 0;
 
     int ret = 1<<30;
     while(1)
     {
-        if (nonInfiniteIndicesStart >= nonInfiniteIndicesCount)
+        if (currentStart >= currentCount)
             goto end;
-        int minIndex = nonInfiniteIndices[nonInfiniteIndicesStart++];
-        int minDistance = lowestDistances[minIndex];
-        if (minIndex == -1)
+        int currenIndex = current[currentStart++];
+        int currenDistance = lowestDistances[currenIndex];
+        if (currenIndex == -1)
             goto end;
 
-        int x = minIndex % WIDTH;
-        int y = (minIndex / WIDTH) % HEIGHT;
-        int t = minIndex / WIDTH / HEIGHT;
+        int x = currenIndex % WIDTH;
+        int y = (currenIndex / WIDTH) % HEIGHT;
+        int t = currenIndex / WIDTH / HEIGHT;
 
-        if (x == WIDTH-1 && y == HEIGHT-1)
+        if (x == endX && y == endY)
         {
             // Found my goal!
             // +1 because I need to go one step further
-            ret = minDistance+1;
+            ret = currenDistance+1;
             goto end;
         }
 
-        out[minIndex] = 1;
+        out[currenIndex] = 1;
 
         // Right
-        if (doesEdgeExist(maps, x, y, t, x+1, y, t+1) &&
-                minDistance + 1 < lowestDistances[_(x+1, y, t+1)] &&
-                !out[_(x+1, y, t+1)])
-        {
-            if (lowestDistances[_(x+1, y, t+1)] >= 1<<30)
-                nonInfiniteIndices[nonInfiniteIndicesCount++] = _(x+1, y, t+1);
-            lowestDistances[_(x+1, y, t+1)] = minDistance+1;
-        }
+        try(x, y, t, x+1, y, t+1, lowestDistances, currenDistance, out, current, &currentCount, maps);
         // Left
-        if (doesEdgeExist(maps, x, y, t, x-1, y, t+1) &&
-                minDistance + 1 < lowestDistances[_(x-1, y, t+1)] &&
-                !out[_(x-1, y, t+1)])
-        {
-            if (lowestDistances[_(x-1, y, t+1)] >= 1<<30)
-                nonInfiniteIndices[nonInfiniteIndicesCount++] = _(x-1, y, t+1);
-            lowestDistances[_(x-1, y, t+1)] = minDistance+1;
-        }
+        try(x, y, t, x-1, y, t+1, lowestDistances, currenDistance, out, current, &currentCount, maps);
         // Down
-        if (doesEdgeExist(maps, x, y, t, x, y+1, t+1) &&
-                minDistance + 1 < lowestDistances[_(x, y+1, t+1)] &&
-                !out[_(x, y+1, t+1)])
-        {
-            if (lowestDistances[_(x, y+1, t+1)] >= 1<<30)
-                nonInfiniteIndices[nonInfiniteIndicesCount++] = _(x, y+1, t+1);
-            lowestDistances[_(x, y+1, t+1)] = minDistance+1;
-        }
+        try(x, y, t, x, y+1, t+1, lowestDistances, currenDistance, out, current, &currentCount, maps);
         // Up
-        if (doesEdgeExist(maps, x, y, t, x, y-1, t+1) &&
-                minDistance + 1 < lowestDistances[_(x, y-1, t+1)] &&
-                !out[_(x, y-1, t+1)])
-        {
-            if (lowestDistances[_(x, y-1, t+1)] >= 1<<30)
-                nonInfiniteIndices[nonInfiniteIndicesCount++] = _(x, y-1, t+1);
-            lowestDistances[_(x, y-1, t+1)] = minDistance+1;
-        }
+        try(x, y, t, x, y-1, t+1, lowestDistances, currenDistance, out, current, &currentCount, maps);
         // Stationary
-        if (doesEdgeExist(maps, x, y, t, x, y, t+1) &&
-                minDistance + 1 < lowestDistances[_(x, y, t+1)] &&
-                !out[_(x, y, t+1)])
-        {
-            if (lowestDistances[_(x, y, t+1)] >= 1<<30)
-                nonInfiniteIndices[nonInfiniteIndicesCount++] = _(x, y, t+1);
-            lowestDistances[_(x, y, t+1)] = minDistance+1;
-        }
+        try(x, y, t, x, y, t+1, lowestDistances, currenDistance, out, current, &currentCount, maps);
     }
 end:
     free(lowestDistances);
     free(out);
-    free(nonInfiniteIndices);
+    free(current);
     return ret;
 }
 
