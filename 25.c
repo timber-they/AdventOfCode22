@@ -6,8 +6,6 @@
 
 #define MAX_LENGTH 21
 #define NUMBERS 118
-//#define NUMBERS 13
-//#define NUMBERS 2
 
 typedef int SNAFU[MAX_LENGTH+1];
 
@@ -75,9 +73,6 @@ void read(FILE *in, SNAFU *buff)
 void sum(SNAFU a, SNAFU b)
 {
     // Add a to b
-    //print(a);
-    //printf(" + ");
-    //print(b);
     int overhead = 0;
     int i;
     for (i = 0; i < MAX_LENGTH; i++)
@@ -96,9 +91,6 @@ void sum(SNAFU a, SNAFU b)
         }
     }
     b[i] += overhead;
-    //printf(" = ");
-    //print(b);
-    //printf("\n");
 }
 
 void print(SNAFU number)
